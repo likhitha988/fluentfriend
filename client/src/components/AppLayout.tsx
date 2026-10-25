@@ -1,6 +1,5 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { BookOpen, Home, LogOut, Mic, Settings as Cog, Target, TrendingUp } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { NavLink, Outlet } from 'react-router-dom';
+import { BookOpen, Home, Mic, Settings as Cog, Target, TrendingUp } from 'lucide-react';
 import { Logo } from './ui';
 
 const links = [
@@ -13,12 +12,6 @@ const links = [
 ];
 
 export default function AppLayout() {
-  const { logout, user } = useAuth();
-  const nav = useNavigate();
-  const out = async () => {
-    await logout();
-    nav('/');
-  };
   return (
     <div className="min-h-screen md:flex">
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-slate-200 bg-white p-4 md:flex">
@@ -39,12 +32,6 @@ export default function AppLayout() {
             </NavLink>
           ))}
         </nav>
-        <div className="border-t border-slate-100 pt-3">
-          <p className="truncate px-3 text-xs text-slate-500">{user?.displayName}</p>
-          <button onClick={out} className="btn-ghost mt-1 w-full justify-start rounded-xl">
-            <LogOut size={16} /> Log out
-          </button>
-        </div>
       </aside>
 
       <main className="min-w-0 flex-1 pb-24 md:pb-8">

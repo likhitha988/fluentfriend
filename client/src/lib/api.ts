@@ -10,14 +10,34 @@ export class ApiError extends Error {
   }
 }
 
+export function guestId(): string {
+  try {
+    let id = localStorage.getItem('ff_guest');
+    if (!id || !/^[a-f0-9]{32,64}$/.test(id)) {
+      const a = new Uint8Array(16);
+      crypto.getRandomValues(a);
+      id = Array.from(a, (b) => b.toString(16).padStart(2, '0')).join('');
+      localStorage.setItem('ff_guest', id);
+    }
+    return id;
+  } catch {
+    return (window as any).__ffGuest ?? ((window as any).__ffGuest = Math.random().toString(16).slice(2).padEnd(32, '0').slice(0, 32));
+  }
+}
+
+export const authHeaders = (): Record<string, string> => ({
+  'X-Requested-With': 'fluentfriend',
+  'X-Guest-Id': guestId(),
+  'X-Timezone': Intl.DateTimeFormat().resolvedOptions().timeZone,
+});
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${BASE}${path}`, {
       method,
-      credentials: 'include',
       headers: {
-        'X-Requested-With': 'fluentfriend',
+        ...authHeaders(),
         ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,

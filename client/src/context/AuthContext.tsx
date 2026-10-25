@@ -1,13 +1,10 @@
-import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
-import { api, ApiError, Settings, User } from '../lib/api';
+import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import { api, Settings, User } from '../lib/api';
 
 interface AuthState {
   user: User | null;
   settings: Settings | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (displayName: string, email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
   setSettings: (s: Settings) => void;
   setUser: (u: User) => void;
 }
@@ -21,42 +18,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     api
-      .get<{ user: User; settings: Settings }>('/auth/me')
+      .get<{ user: User; settings: Settings }>('/settings')
       .then((r) => {
         setUser(r.user);
         setSettings(r.settings);
       })
-      .catch((e) => {
-        if (!(e instanceof ApiError) || e.status !== 401) console.warn('Could not check session');
-      })
+      .catch(() => console.warn('Could not reach the server'))
       .finally(() => setLoading(false));
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const r = await api.post<{ user: User; settings: Settings }>('/auth/login', { email, password });
-    setUser(r.user);
-    setSettings(r.settings);
-  }, []);
-
-  const signup = useCallback(async (displayName: string, email: string, password: string) => {
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    const r = await api.post<{ user: User; settings: Settings }>('/auth/register', { displayName, email, password, timezone });
-    setUser(r.user);
-    setSettings(r.settings);
-  }, []);
-
-  const logout = useCallback(async () => {
-    try {
-      await api.post('/auth/logout');
-    } finally {
-      setUser(null);
-      setSettings(null);
-    }
-  }, []);
-
-  return (
-    <Ctx.Provider value={{ user, settings, loading, login, signup, logout, setSettings, setUser }}>{children}</Ctx.Provider>
-  );
+  return <Ctx.Provider value={{ user, settings, loading, setSettings, setUser }}>{children}</Ctx.Provider>;
 }
 
 export function useAuth() {

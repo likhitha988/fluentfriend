@@ -1,7 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Download, Loader2, Trash2, Volume2 } from 'lucide-react';
-import { api, Settings } from '../lib/api';
+import { api, authHeaders, Settings } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { speechInput, speechOutput } from '../lib/speech';
 import { ErrorBox, PageHeader } from '../components/ui';
@@ -12,15 +11,12 @@ const LANGS = [
 ];
 
 export default function SettingsPage() {
-  const { user, settings, setSettings, setUser, logout } = useAuth();
-  const nav = useNavigate();
+  const { user, settings, setSettings, setUser } = useAuth();
   const [name, setName] = useState(user?.displayName ?? '');
   const [s, setS] = useState<Settings | null>(settings);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [delPw, setDelPw] = useState('');
-  const [delOpen, setDelOpen] = useState(false);
 
   useEffect(() => {
     speechOutput.getVoices().then((v) => setVoices(v.filter((x) => x.lang.toLowerCase().startsWith('en'))));
@@ -65,7 +61,7 @@ export default function SettingsPage() {
 
   const exportData = () =>
     wrap(async () => {
-      const r = await fetch(`${import.meta.env.VITE_API_URL ?? '/api'}/account/export`, { credentials: 'include', headers: { 'X-Requested-With': 'fluentfriend' } });
+      const r = await fetch(`${import.meta.env.VITE_API_URL ?? '/api'}/account/export`, { headers: authHeaders() });
       if (!r.ok) throw new Error('Could not export your data.');
       const url = URL.createObjectURL(await r.blob());
       const a = document.createElement('a');
@@ -77,9 +73,10 @@ export default function SettingsPage() {
 
   const deleteAccount = () =>
     wrap(async () => {
-      await api.del('/account', { password: delPw });
-      await logout().catch(() => {});
-      nav('/');
+      if (!window.confirm('Delete all your data on this device and start fresh?')) return;
+      await api.del('/account');
+      try { localStorage.removeItem('ff_guest'); } catch { /* ignore */ }
+      window.location.href = '/';
     });
 
   const Radio = ({ name: n, value, options }: { name: keyof Settings; value: string; options: [string, string, string][] }) => (
@@ -110,7 +107,6 @@ export default function SettingsPage() {
             <label className="label" htmlFor="dn">Display name</label>
             <input id="dn" className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={40} required />
           </div>
-          <p className="text-sm text-slate-500">Signed in as {user?.email}</p>
         </section>
 
         <section className="card space-y-4">
@@ -189,15 +185,8 @@ export default function SettingsPage() {
         <div className="flex flex-wrap gap-2">
           <button className="btn-secondary" onClick={exportData}><Download size={16} /> Download my data</button>
           <button className="btn-secondary" onClick={clearHistory}><Trash2 size={16} /> Delete conversation history</button>
-          <button className="btn-secondary text-rose-600" onClick={() => setDelOpen((o) => !o)}>Delete my account</button>
+          <button className="btn-secondary text-rose-600" onClick={deleteAccount}>Reset all my data</button>
         </div>
-        {delOpen && (
-          <div className="space-y-2 rounded-xl bg-rose-50 p-4">
-            <p className="text-sm text-rose-900">This permanently deletes your account, conversations, words and progress. Enter your password to confirm.</p>
-            <input type="password" className="input" value={delPw} onChange={(e) => setDelPw(e.target.value)} placeholder="Password" autoComplete="current-password" />
-            <button className="btn-danger" disabled={!delPw} onClick={deleteAccount}>Permanently delete account</button>
-          </div>
-        )}
       </section>
     </div>
   );

@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import { BookOpen, Heart, Mic, Sparkles, Target, Volume2 } from 'lucide-react';
 import { Logo } from '../components/ui';
-import { useAuth } from '../context/AuthContext';
 
 const features = [
   { icon: Mic, title: 'Just talk', text: 'Speak out loud and get a natural reply, like chatting with a friend, not sitting in a class.' },
@@ -11,21 +10,13 @@ const features = [
 ];
 
 export default function Landing() {
-  const { user } = useAuth();
-  const cta = user ? '/app/talk' : '/signup';
+  const cta = '/app/talk';
   return (
     <div className="min-h-screen bg-gradient-to-b from-brand-50 via-white to-white">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-4 py-5 sm:px-6">
         <Logo className="text-lg" />
         <nav className="flex items-center gap-2">
-          {user ? (
-            <Link to="/app" className="btn-secondary">Dashboard</Link>
-          ) : (
-            <>
-              <Link to="/login" className="btn-ghost">Log in</Link>
-              <Link to="/signup" className="btn-primary hidden sm:inline-flex">Sign up</Link>
-            </>
-          )}
+          <Link to="/app" className="btn-secondary">Dashboard</Link>
         </nav>
       </header>
 
@@ -43,7 +34,6 @@ export default function Landing() {
             <Link to={cta} className="btn-primary px-7 py-3 text-base">
               <Mic size={18} /> Start speaking
             </Link>
-            {!user && <Link to="/login" className="btn-secondary px-7 py-3 text-base">I have an account</Link>}
           </div>
           <p className="mt-4 text-sm text-slate-500">Works best in Chrome, Edge or Safari. You can type if you prefer.</p>
         </div>
