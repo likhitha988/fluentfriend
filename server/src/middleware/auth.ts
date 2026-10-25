@@ -1,51 +1,57 @@
 import { NextFunction, Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
-import { env } from '../config/env';
-import { HttpError, unauthorized } from '../utils/errors';
-
-export const COOKIE_NAME = 'ff_token';
-const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+import crypto from 'crypto';
+import { User } from '../models/User';
+import { UserSettings } from '../models/UserSettings';
+import { LearningProgress } from '../models/LearningProgress';
+import { HttpError } from '../utils/errors';
+import { isValidTimeZone } from '../utils/date';
 
 export interface AuthedRequest extends Request {
   userId: string;
 }
 
-export function signToken(userId: string): string {
-  return jwt.sign({ sub: userId }, env.JWT_SECRET, { expiresIn: '7d' });
-}
+const GUEST_RE = /^[a-f0-9]{32,64}$/;
+const known = new Map<string, string>();
 
-const cookieBase = () => ({
-  httpOnly: true,
-  secure: env.isProd || env.cookieSameSite === 'none',
-  sameSite: env.cookieSameSite,
-  path: '/',
-});
-
-export function setAuthCookie(res: Response, userId: string): void {
-  res.cookie(COOKIE_NAME, signToken(userId), { ...cookieBase(), maxAge: MAX_AGE_MS });
-}
-
-export function clearAuthCookie(res: Response): void {
-  res.clearCookie(COOKIE_NAME, cookieBase());
+async function resolveGuest(guestId: string, tzHeader?: string): Promise<string> {
+  const cached = known.get(guestId);
+  if (cached) return cached;
+  const email = `${guestId}@guest.local`;
+  let user = await User.findOne({ email });
+  if (!user) {
+    try {
+      user = await User.create({
+        email,
+        passwordHash: crypto.randomBytes(32).toString('hex'),
+        displayName: 'Friend',
+      });
+      const tz = tzHeader && isValidTimeZone(tzHeader) ? tzHeader : 'UTC';
+      await UserSettings.create({ user: user._id, timezone: tz });
+      await LearningProgress.create({ user: user._id });
+    } catch (err) {
+      if ((err as { code?: number }).code !== 11000) throw err;
+      user = await User.findOne({ email });
+    }
+  }
+  if (!user) throw new HttpError(500, 'guest_failed', 'Could not start a session.');
+  const uid = String(user._id);
+  if (known.size > 5000) known.clear();
+  known.set(guestId, uid);
+  return uid;
 }
 
 export function requireAuth(req: Request, _res: Response, next: NextFunction): void {
-  const token = req.cookies?.[COOKIE_NAME];
-  if (!token || typeof token !== 'string') return next(unauthorized());
-  try {
-    const payload = jwt.verify(token, env.JWT_SECRET) as jwt.JwtPayload;
-    if (!payload.sub || typeof payload.sub !== 'string') return next(unauthorized());
-    (req as AuthedRequest).userId = payload.sub;
-    next();
-  } catch {
-    next(unauthorized('Your session has expired. Please log in again.'));
-  }
+  const raw = req.get('x-guest-id');
+  const guestId = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  if (!GUEST_RE.test(guestId)) return next(new HttpError(400, 'bad_guest', 'Missing session id.'));
+  resolveGuest(guestId, req.get('x-timezone') ?? undefined)
+    .then((uid) => {
+      (req as AuthedRequest).userId = uid;
+      next();
+    })
+    .catch(next);
 }
 
-/**
- * CSRF defence for cookie auth: browsers cannot add a custom header on a cross-site form post,
- * and CORS only allows our own frontend origin to send it.
- */
 export function requireCsrfHeader(req: Request, _res: Response, next: NextFunction): void {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
   if (req.get('x-requested-with') !== 'fluentfriend') {

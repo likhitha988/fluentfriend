@@ -1,7 +1,6 @@
 import { Router } from 'express';
-import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { AuthedRequest, clearAuthCookie } from '../middleware/auth';
+import { AuthedRequest } from '../middleware/auth';
 import { wrap } from '../middleware/errorHandler';
 import { User } from '../models/User';
 import { UserSettings, CORRECTION_STYLES, DIFFICULTIES } from '../models/UserSettings';
@@ -10,7 +9,7 @@ import { Message } from '../models/Message';
 import { LearningProgress } from '../models/LearningProgress';
 import { VocabularyWord } from '../models/VocabularyWord';
 import { DailyChallenge } from '../models/DailyChallenge';
-import { HttpError, notFound } from '../utils/errors';
+import { notFound } from '../utils/errors';
 import { isValidTimeZone } from '../utils/date';
 import { serializeSettings, serializeUser } from '../utils/serialize';
 
@@ -86,19 +85,13 @@ accountRouter.get(
   }),
 );
 
-const deleteSchema = z.object({ password: z.string().min(1).max(72) });
-
-/** Permanently deletes the account and every record that belongs to it. */
+/** Permanently deletes this guest's data and every record that belongs to it. */
 accountRouter.delete(
   '/',
   wrap(async (req, res) => {
     const uid = (req as AuthedRequest).userId;
-    const { password } = deleteSchema.parse(req.body);
-    const user = await User.findById(uid).select('+passwordHash');
+    const user = await User.findById(uid);
     if (!user) throw notFound('Account not found.');
-    if (!(await bcrypt.compare(password, user.passwordHash))) {
-      throw new HttpError(403, 'wrong_password', 'That password is not correct.');
-    }
     await Promise.all([
       Message.deleteMany({ user: uid }),
       Conversation.deleteMany({ user: uid }),
@@ -108,7 +101,6 @@ accountRouter.delete(
       UserSettings.deleteMany({ user: uid }),
     ]);
     await User.deleteOne({ _id: uid });
-    clearAuthCookie(res);
     res.json({ ok: true });
   }),
 );

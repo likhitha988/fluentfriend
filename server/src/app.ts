@@ -6,7 +6,6 @@ import rateLimit from 'express-rate-limit';
 import { env } from './config/env';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { requireAuth, requireCsrfHeader } from './middleware/auth';
-import { authRouter } from './routes/auth';
 import { conversationsRouter } from './routes/conversations';
 import { vocabularyRouter } from './routes/vocabulary';
 import { dashboardRouter, practiceRouter } from './routes/practice';
@@ -17,7 +16,7 @@ import { isAiConfigured } from './services/ai/provider';
 export function createApp() {
   const app = express();
   // Render (and most hosts) sit behind one proxy; needed for correct client IPs in rate limiting.
-  app.set('trust proxy', env.TRUST_PROXY_HOPS);
+  app.set('trust proxy', 1);
   app.disable('x-powered-by');
 
   app.use(helmet());
@@ -29,7 +28,7 @@ export function createApp() {
         cb(null, false);
       },
       credentials: true,
-      allowedHeaders: ['Content-Type', 'X-Requested-With'],
+      allowedHeaders: ['Content-Type', 'X-Requested-With', 'X-Guest-Id', 'X-Timezone'],
       methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     }),
   );
@@ -45,22 +44,11 @@ export function createApp() {
       message: { error: { code: 'rate_limited', message: 'Too many requests. Please slow down.' } },
     }),
   );
-  const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 25,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: { code: 'rate_limited', message: 'Too many attempts. Please try again in a few minutes.' } },
-  });
-
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true, aiConfigured: isAiConfigured(), aiProvider: env.AI_PROVIDER });
   });
 
   app.use('/api', requireCsrfHeader);
-  app.use('/api/auth/login', authLimiter);
-  app.use('/api/auth/register', authLimiter);
-  app.use('/api/auth', authRouter);
 
   app.use('/api/conversations', requireAuth, conversationsRouter);
   app.use('/api/vocabulary', requireAuth, vocabularyRouter);
