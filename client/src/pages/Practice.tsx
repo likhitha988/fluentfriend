@@ -72,7 +72,7 @@ export default function Practice() {
 
       <Section icon={<Timer size={20} className="text-brand-600" />} title="Timed speaking" hint="Speak for longer each time: 30 seconds, then 1 minute, then 2 minutes. Pauses are fine.">
         {c.timed.map((t) => (
-          <Tile key={t.id} to={q('timed', t)} title={t.title} text={t.prompt} meta={`Aim for ${t.seconds >= 60 ? `${t.seconds / 60} min` : `${t.seconds} sec`}`} />
+         <Tile key={t.id} to={q('timed', t)} title={t.title} text={t.prompt} meta={`Aim for ${(t.seconds ?? 0) >= 60 ? `${(t.seconds ?? 0) / 60} min` : `${t.seconds ?? 0} sec`}`} />
         ))}
       </Section>
 
